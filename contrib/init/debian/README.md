@@ -1,5 +1,7 @@
 # Run gorush in Debian/Ubuntu
 
+> **Note for Debian Trixie and newer:** This is the legacy SysV init script. The project now ships a native systemd service via the official `.deb` package. Install with `sudo apt install gorush` and manage with `systemctl`. See [README.md#apt-debianubuntu](../../README.md#apt-debianubuntu) for details.
+
 ## Installation
 
 Put `gorush` binary into `/usr/bin` folder.

@@ -48,6 +48,8 @@ curl -X POST http://localhost:8088/api/push \
   - [Recommended: Install Script](#recommended-install-script)
   - [Manual Download](#manual-download)
   - [Package Managers](#package-managers)
+    - [Homebrew (macOS/Linux)](#homebrew-macoslinux)
+    - [APT (Debian/Ubuntu)](#apt-debianubuntu)
   - [Build from Source](#build-from-source)
   - [Docker](#docker)
 - [Usage](#usage) - CLI commands and REST API examples
@@ -320,6 +322,25 @@ Download from [releases page](https://github.com/appleboy/gorush/releases):
 ```bash
 brew tap appleboy/tap
 brew install gorush
+```
+
+#### APT (Debian/Ubuntu)
+
+Install from the official APT repository (supports Debian Trixie and later):
+
+```bash
+sudo mkdir -p /usr/share/keyrings
+curl -fsSL https://appleboy.github.io/gorush/gorush-archive-keyring.gpg \
+  | sudo tee /usr/share/keyrings/gorush-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/gorush-archive-keyring.gpg] https://appleboy.github.io/gorush/ trixie main" \
+  | sudo tee /etc/apt/sources.list.d/gorush.list
+sudo apt update && sudo apt install gorush
+```
+
+The service installs **disabled and stopped** by default. After configuring `/etc/gorush/config.yml`, start it:
+
+```bash
+sudo systemctl enable --now gorush
 ```
 
 #### Go Install

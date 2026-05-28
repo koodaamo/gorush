@@ -108,6 +108,10 @@ jobs:
               --output "dists/$SUITE/InRelease" \
               --clearsign "dists/$SUITE/Release"
 
+          gpg --export --armor \
+            "${{ needs.goreleaser.outputs.gpg_fingerprint }}" \
+            > "$REPO_DIR/gorush-archive-keyring.gpg"
+
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
