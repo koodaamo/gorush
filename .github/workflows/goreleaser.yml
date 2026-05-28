@@ -7,10 +7,14 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    outputs:
+      gpg_fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -22,12 +26,93 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
           version: latest
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+
+      - name: Upload deb packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-packages
+          path: dist/*.deb
+          retention-days: 7
+
+  deploy-apt-repo:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: gh-pages
+          fetch-depth: 1
+
+      - name: Download deb packages
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-packages
+          path: deb-packages
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils dpkg-dev
+
+      - name: Build APT repository structure
+        run: |
+          REPO_DIR="gh-pages"
+          SUITE="trixie"
+
+          mkdir -p "$REPO_DIR/pool/$SUITE/main"
+          mkdir -p "$REPO_DIR/dists/$SUITE/main/binary-amd64"
+          mkdir -p "$REPO_DIR/dists/$SUITE/main/binary-arm64"
+
+          cp deb-packages/*.deb "$REPO_DIR/pool/$SUITE/main/"
+
+          cd "$REPO_DIR"
+
+          for arch in amd64 arm64; do
+            dpkg-scanpackages --arch "$arch" "pool/$SUITE/main" \
+              > "dists/$SUITE/main/binary-$arch/Packages"
+            gzip -k -f "dists/$SUITE/main/binary-$arch/Packages"
+          done
+
+          cd "dists/$SUITE"
+          apt-ftparchive release . > Release
+
+          cd ../..
+          echo "${{ secrets.GPG_PASSPHRASE }}" | \
+            gpg --batch --yes --passphrase-fd 0 \
+              --default-key "${{ needs.goreleaser.outputs.gpg_fingerprint }}" \
+              --output "dists/$SUITE/InRelease" \
+              --clearsign "dists/$SUITE/Release"
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          publish_branch: gh-pages
+          force_orphan: false
+          keep_files: false

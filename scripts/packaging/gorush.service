@@ -1,0 +1,15 @@
+[Unit]
+Description=Gorush push notification server
+After=network.target
+
+[Service]
+Type=simple
+User=gorush
+Group=gorush
+ExecStart=/usr/bin/gorush -c /etc/gorush/config.yml
+Restart=on-failure
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

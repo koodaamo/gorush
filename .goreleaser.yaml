@@ -87,6 +87,27 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Version }}"
 
+nfpms:
+  - id: gorush-debian
+    package_name: gorush
+    packager: deb
+    formats:
+      - deb
+    vendor: Appleboy
+    homepage: https://github.com/appleboy/gorush
+    maintainer: Bo-Yi Wu <appleboy.tw@gmail.com>
+    description: A tracking push notification server written in Go.
+    license: MIT
+    contents:
+      - src: ./scripts/packaging/config.yml
+        dst: /etc/gorush/config.yml
+        type: config
+      - src: ./scripts/packaging/gorush.service
+        dst: /lib/systemd/system/gorush.service
+    scripts:
+      postinstall: ./scripts/packaging/postinstall.sh
+      preremove: ./scripts/packaging/preremove.sh
+
 changelog:
   use: github
   groups:
