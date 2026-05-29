@@ -90,7 +90,6 @@ snapshot:
 nfpms:
   - id: gorush-debian
     package_name: gorush
-    packager: deb
     formats:
       - deb
     vendor: Appleboy
