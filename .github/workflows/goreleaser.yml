@@ -1,4 +1,4 @@
-name: Goreleaser
+name: goreleaser
 
 on:
   push:
@@ -17,12 +17,12 @@ jobs:
       gpg_fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
@@ -35,7 +35,7 @@ jobs:
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
@@ -44,23 +44,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
+      # We still upload this so Job 2 can grab it, but it only needs to live for 1 day now!
       - name: Upload deb packages as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: deb-packages
           path: dist/*.deb
-          retention-days: 7
+          retention-days: 1 
 
   deploy-apt-repo:
     needs: goreleaser
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v6
-        with:
-          ref: gh-pages
-          path: gh-pages
-          fetch-depth: 1
+      # Create a clean directory for the web files instead of checking out a branch
+      - name: Create Repo Directory
+        run: mkdir -p apt-repo
 
       - name: Download deb packages
         uses: actions/download-artifact@v4
@@ -81,7 +82,8 @@ jobs:
 
       - name: Build APT repository structure
         run: |
-          REPO_DIR="gh-pages"
+          # We use our clean folder instead of 'gh-pages'
+          REPO_DIR="apt-repo"
           SUITE="trixie"
 
           mkdir -p "$REPO_DIR/pool/$SUITE/main"
@@ -102,21 +104,30 @@ jobs:
           apt-ftparchive release . > Release
 
           cd ../..
+          
+          # Sign the release
           echo "${{ secrets.GPG_PASSPHRASE }}" | \
             gpg --batch --yes --passphrase-fd 0 \
               --default-key "${{ needs.goreleaser.outputs.gpg_fingerprint }}" \
               --output "dists/$SUITE/InRelease" \
               --clearsign "dists/$SUITE/Release"
 
+          # Export the public key so users can download it
           gpg --export --armor \
             "${{ needs.goreleaser.outputs.gpg_fingerprint }}" \
-            > "$REPO_DIR/gorush-archive-keyring.gpg"
+            > "gorush-archive-keyring.gpg"
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      # Configure GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Bundle the 'apt-repo' folder we just built
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./gh-pages
-          publish_branch: gh-pages
-          force_orphan: false
-          keep_files: false
+          path: './apt-repo'
+
+      # Send it straight to the live web servers
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
