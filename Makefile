@@ -123,6 +123,13 @@ dev: air
 version: ## print the version
 	@echo $(VERSION)
 
+.PHONY: deb
+deb: ## Build debian packages for amd64 and arm64
+	@hash goreleaser > /dev/null 2>&1; if [ $$? -ne 0 ]; then \
+		$(GO) install github.com/goreleaser/goreleaser/v2@latest; \
+	fi
+	goreleaser build --snapshot --clean
+
 .PHONY: lint
 lint: ## Run golangci-lint
 	@hash golangci-lint > /dev/null 2>&1; if [ $$? -ne 0 ]; then \
